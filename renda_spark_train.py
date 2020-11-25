@@ -29,13 +29,13 @@ assembler = VectorAssembler(
     outputCol="features")
 dfTest3 = assembler.transform(dfTest2)
 
-lr = LogisticRegression(labelCol="label",featuresCol="features", maxIter=100, regParam=0.02, elasticNetParam=0.8)
+lr = LogisticRegression(labelCol="label",featuresCol="features", family="multinomial")
 stages = [lr]
 pipeline = Pipeline().setStages(stages)
 
 params = ParamGridBuilder()\
     .addGrid(lr.elasticNetParam, [0.0, 0.25, 0.5, .075, 1.0])\
-    .addGrid(lr.regParam, [0.1, 0.5, 1.0, 1.5, 2.0])\
+    .addGrid(lr.regParam, [0.01, 0.1, 0.5, 1.0, 1.5, 2.0])\
     .addGrid(lr.maxIter, [100])\
     .build()
 
@@ -61,7 +61,7 @@ model = tvs.fit(dfTrain3)
 tester = model.transform(dfTest3)
 tester.select("features", "label", "prediction").show()
 accuracy = evaluator.evaluate(tester)
-print(accuracy)
+print("F1 statistic on test dataset: " + str(accuracy))
 
 
 # Good to stop SparkSession at the end of the application
