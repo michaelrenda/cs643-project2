@@ -18,7 +18,6 @@ run_local = True
 class LabelSetter(Transformer):
     # Label Setter herit of property of Transformer
     def __init__(self, inputCol='quality', outputCol='label'): 
-        super(Transformer, self).__init__()
         self.inputCol = inputCol
         self.outputCol = outputCol
     def _transform(self, df):
