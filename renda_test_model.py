@@ -16,22 +16,37 @@ from pyspark.ml.tuning import TrainValidationSplitModel
 from pyspark.ml.pipeline import Transformer
 from pyspark.ml import PipelineModel
 
-train_local = True
+
+def cleanCSVFile(inputPath, outputPath):
+    file1 = open(inputPath, 'r') 
+    file2 = open(outputPath, 'w')
+    Lines = file1.readlines() 
+  
+    for line in Lines: 
+        line2 = line.replace(';', ',')
+        line3 = line2.replace('"', '')
+        file2.write(line3)
+    file1.close()
+    file2.close()
+    return outputPath
+
 
 sys.stdout = open("test.txt", "w")
 
-if train_local == True:
-    # Creates a session on a local master
-    session = SparkSession.builder.appName("Train LR Model").master("local[*]").getOrCreate()
-    f_path = ''
-else:
-    session = SparkSession.builder.appName("Train LR Model").getOrCreate()
-    f_path = 's3n://renda-spark-input/'
+f_path = ''
+model_path = ''
+
+if len(sys.argv) > 1:
+    f_path = sys.argv[1]
+    if len(sys.argv) > 2:
+        model_path = sys.argv[2]
+
+session = SparkSession.builder.appName("Train LR Model").getOrCreate()
 
 # Reads a CSV file with header, stores it in a dataframe
-dfTrain = session.read.csv(header=True, inferSchema=True, path=f_path + 'TrainingDataset.csv')
-dfTest = session.read.csv(header=True, inferSchema=True, path=f_path + 'ValidationDataset.csv')
-logisticRegressionModelLoaded = TrainValidationSplitModel.load(f_path + "renda_model")
+testing_file = cleanCSVFile(f_path + 'ValidationDataset.csv', 'testing.csv')
+dfTest = session.read.csv(header=True, inferSchema=True, path=testing_file)
+logisticRegressionModelLoaded = PipelineModel.load(model_path + "renda_model")
 
 dfTest1 = dfTest.withColumn("label", dfTest["quality"])
 

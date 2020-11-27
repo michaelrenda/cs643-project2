@@ -13,21 +13,37 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
 from pyspark.ml.pipeline import Transformer
 
-train_local = True
+def cleanCSVFile(inputPath, outputPath):
+    file1 = open(inputPath, 'r') 
+    file2 = open(outputPath, 'w')
+    Lines = file1.readlines() 
+  
+    for line in Lines: 
+        line2 = line.replace(';', ',')
+        line3 = line2.replace('"', '')
+        file2.write(line3)
+    file1.close()
+    file2.close()
+    return outputPath
 
-sys.stdout = open("test.txt", "w")
 
-if train_local == True:
-    # Creates a session on a local master
-    session = SparkSession.builder.appName("Train LR Model").master("local[*]").getOrCreate()
-    f_path = ''
-else:
-    session = SparkSession.builder.appName("Train LR Model").getOrCreate()
-    f_path = 's3n://renda-spark-input/'
+f_path = ''
+model_path = ''
+
+if len(sys.argv) > 1:
+    f_path = sys.argv[1]
+    if len(sys.argv) > 2:
+        model_path = sys.argv[2]
+
+sys.stdout = open("train.txt", "w")
+
+session = SparkSession.builder.appName("Train LR Model").getOrCreate()
 
 # Reads a CSV file with header, stores it in a dataframe
-dfTrain = session.read.csv(header=True, inferSchema=True, path=f_path + 'TrainingDataset.csv')
-dfTest = session.read.csv(header=True, inferSchema=True, path=f_path + 'ValidationDataset.csv')
+training_file = cleanCSVFile(f_path + 'TrainingDataset.csv', 'training.csv')
+testing_file = cleanCSVFile(f_path + 'ValidationDataset.csv', 'testing.csv')
+dfTrain = session.read.csv(header=True, inferSchema=True, path=training_file)
+dfTest = session.read.csv(header=True, inferSchema=True, path=testing_file)
 
 dfTrain1 = dfTrain.withColumn("label", dfTrain["quality"])
 dfTest1 = dfTest.withColumn("label", dfTest["quality"])
@@ -59,9 +75,8 @@ tvs = TrainValidationSplit()\
 
 # COMMAND ----------
 
-model = tvs.fit(dfTrain1)
+model = tvs.fit(dfTrain1).bestModel
 
-model.write().overwrite().save(f_path + "renda_model")
 
 # Make predictions on test data. model is the model with combination of parameters
 # that performed best.
@@ -69,9 +84,9 @@ tester = model.transform(dfTest1)
 tester.select("features", "label", "prediction").show()
 accuracy = evaluator.evaluate(tester)
 print("F1 statistic on test dataset: " + str(accuracy))
+sys.stdout.close
 
-
+model.write().overwrite().save(model_path + "renda_model")
 # Good to stop SparkSession at the end of the application
 session.stop()
 
-sys.stdout.close
