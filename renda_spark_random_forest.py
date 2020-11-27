@@ -13,7 +13,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
 from pyspark.ml.pipeline import Transformer
 
-run_local = True
+run_local = False
 
 class LabelSetter(Transformer):
     # Label Setter herit of property of Transformer
@@ -42,7 +42,7 @@ assembler = VectorAssembler(
 ls = LabelSetter("quality")
 
 # Train a DecisionTree model.
-rf = RandomForestClassifier(labelCol="label", featuresCol="features", numTrees=1000)
+rf = RandomForestClassifier(labelCol="label", featuresCol="features", numTrees=10000)
 
 # Chain indexers and tree in a Pipeline
 pipeline = Pipeline(stages=[assembler, ls, rf])

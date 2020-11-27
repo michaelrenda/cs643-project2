@@ -13,6 +13,8 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
 from pyspark.ml.pipeline import Transformer
 
+train_local = False
+
 class LabelSetter(Transformer):
     # Label Setter herit of property of Transformer
     def __init__(self, inputCol='quality', outputCol='label'): 
@@ -23,15 +25,17 @@ class LabelSetter(Transformer):
 
 sys.stdout = open("test.txt", "w")
 
-# Creates a session on a local master
-#session = SparkSession.builder.appName("CSV to Dataset").master("local[*]").getOrCreate()
-session = SparkSession.builder.appName("CSV to Dataset").getOrCreate()
+if train_local == True:
+    # Creates a session on a local master
+    session = SparkSession.builder.appName("CSV to Dataset").master("local[*]").getOrCreate()
+    # Reads a CSV file with header, stores it in a dataframe
+    dfTrain = session.read.csv(header=True, inferSchema=True, path='TrainingDataset.csv')
+    dfTest = session.read.csv(header=True, inferSchema=True, path='ValidationDataset.csv')
+else:
+    session = SparkSession.builder.appName("CSV to Dataset").getOrCreate()
+    dfTrain = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/TrainingDataset.csv')
+    dfTest = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/ValidationDataset.csv')
 
-# Reads a CSV file with header, stores it in a dataframe
-dfTrain = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/TrainingDataset.csv')
-#dfTrain = session.read.csv(header=True, inferSchema=True, path='TrainingDataset.csv')
-dfTest = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/ValidationDataset.csv')
-#dfTest = session.read.csv(header=True, inferSchema=True, path='ValidationDataset.csv')
 
 assembler = VectorAssembler(
     inputCols=["fixed acidity", "volatile acidity", "citric acid", "residual sugar", "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density", "pH", "sulphates", "alcohol"],
