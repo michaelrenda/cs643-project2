@@ -2,6 +2,7 @@ from pyspark.sql import SparkSession
 import pyspark.sql as sql
 from pyspark.sql.types import DoubleType
 import os
+import sys
 from pyspark.ml.feature import RFormula
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.feature import VectorAssembler
@@ -10,27 +11,36 @@ from pyspark.ml.tuning import ParamGridBuilder
 from pyspark.ml import Pipeline
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
+from pyspark.ml.pipeline import Transformer
+
+class LabelSetter(Transformer):
+    # Label Setter herit of property of Transformer
+    def __init__(self, inputCol='quality', outputCol='label'): 
+        super(Transformer, self).__init__()
+        self.inputCol = inputCol
+        self.outputCol = outputCol
+    def _transform(self, df):
+        return df.withColumn(self.outputCol, df[self.inputCol])
+
+sys.stdout = open("test.txt", "w")
 
 # Creates a session on a local master
-session = SparkSession.builder.appName("CSV to Dataset").master("local[*]").getOrCreate()
+#session = SparkSession.builder.appName("CSV to Dataset").master("local[*]").getOrCreate()
+session = SparkSession.builder.appName("CSV to Dataset").getOrCreate()
 
-# Reads a CSV file with header, called books.csv, stores it in a dataframe
-dfTrain = session.read.csv(header=True, inferSchema=True, path='TrainingDataset.csv')
-dfTrain2 = dfTrain.withColumn("label", dfTrain["quality"].cast(DoubleType()))
+# Reads a CSV file with header, stores it in a dataframe
+dfTrain = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/TrainingDataset.csv')
+#dfTrain = session.read.csv(header=True, inferSchema=True, path='TrainingDataset.csv')
+dfTest = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/ValidationDataset.csv')
+#dfTest = session.read.csv(header=True, inferSchema=True, path='ValidationDataset.csv')
+
 assembler = VectorAssembler(
     inputCols=["fixed acidity", "volatile acidity", "citric acid", "residual sugar", "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density", "pH", "sulphates", "alcohol"],
     outputCol="features")
-dfTrain3 = assembler.transform(dfTrain2)
-
-dfTest = session.read.csv(header=True, inferSchema=True, path='ValidationDataset.csv')
-dfTest2 = dfTest.withColumn("label", dfTest["quality"].cast(DoubleType()))
-assembler = VectorAssembler(
-    inputCols=["fixed acidity", "volatile acidity", "citric acid", "residual sugar", "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density", "pH", "sulphates", "alcohol"],
-    outputCol="features")
-dfTest3 = assembler.transform(dfTest2)
-
+ls = LabelSetter("quality")
 lr = LogisticRegression(labelCol="label",featuresCol="features", family="multinomial")
-stages = [lr]
+
+stages = [assembler, ls, lr]
 pipeline = Pipeline().setStages(stages)
 
 params = ParamGridBuilder()\
@@ -44,7 +54,6 @@ evaluator = MulticlassClassificationEvaluator()\
   .setPredictionCol("prediction")\
   .setLabelCol("label")
 
-
 tvs = TrainValidationSplit()\
   .setTrainRatio(1.0)\
   .setEstimatorParamMaps(params)\
@@ -54,11 +63,11 @@ tvs = TrainValidationSplit()\
 
 # COMMAND ----------
 
-model = tvs.fit(dfTrain3)
+model = tvs.fit(dfTrain)
 
 # Make predictions on test data. model is the model with combination of parameters
 # that performed best.
-tester = model.transform(dfTest3)
+tester = model.transform(dfTest)
 tester.select("features", "label", "prediction").show()
 accuracy = evaluator.evaluate(tester)
 print("F1 statistic on test dataset: " + str(accuracy))
@@ -66,3 +75,5 @@ print("F1 statistic on test dataset: " + str(accuracy))
 
 # Good to stop SparkSession at the end of the application
 session.stop()
+
+sys.stdout.close
