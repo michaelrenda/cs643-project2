@@ -3,6 +3,8 @@ import pyspark.sql as sql
 from pyspark.sql.types import DoubleType
 import os
 import sys
+import shutil
+from pyspark.sql.types import IntegerType
 from pyspark.ml.feature import RFormula
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.feature import VectorAssembler
@@ -13,40 +15,53 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
 from pyspark.ml.pipeline import Transformer
 
-def cleanCSVFile(inputPath, outputPath):
+def cleanCSVFile(inputPath):
+
     file1 = open(inputPath, 'r') 
-    file2 = open(outputPath, 'w')
     Lines = file1.readlines() 
-  
-    for line in Lines: 
+    line = Lines[0]
+    line2 = line.replace(';', ',').strip('\n')
+    line3 = line2.replace('"', '')
+    column_headers = line3.split(',')
+    Lines.pop(0) 
+    data_list = []
+    for line in Lines:
         line2 = line.replace(';', ',')
-        line3 = line2.replace('"', '')
-        file2.write(line3)
-    file1.close()
-    file2.close()
-    return outputPath
+        line3 = line2.replace('"', '').strip('\n')
+        data_line = tuple(map(float, line3.split(',')))
+        data_list.append(data_line)
+    df = session.createDataFrame(data=data_list, schema = column_headers)
+    df2 = df.withColumn("label", df["quality"].cast(IntegerType()))
+    return df2
 
 
-f_path = ''
 model_path = ''
 
+# delete the previous model if it exists
+try:
+    shutil.rmtree('renda_model')
+except OSError as e:
+    pass
+
+
 if len(sys.argv) > 1:
-    f_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        model_path = sys.argv[2]
+    model_path = sys.argv[1]
+ 
+# delete the previous model if it exists
+try:
+    shutil.rmtree(model_path + 'renda_model')
+except OSError as e:
+    pass
+
 
 sys.stdout = open("train.txt", "w")
 
 session = SparkSession.builder.appName("Train LR Model").getOrCreate()
 
 # Reads a CSV file with header, stores it in a dataframe
-training_file = cleanCSVFile(f_path + 'TrainingDataset.csv', 'training.csv')
-testing_file = cleanCSVFile(f_path + 'ValidationDataset.csv', 'testing.csv')
-dfTrain = session.read.csv(header=True, inferSchema=True, path=training_file)
-dfTest = session.read.csv(header=True, inferSchema=True, path=testing_file)
+dfTrain1 = cleanCSVFile('TrainingDataset.csv')
+dfTest1 = cleanCSVFile('ValidationDataset.csv')
 
-dfTrain1 = dfTrain.withColumn("label", dfTrain["quality"])
-dfTest1 = dfTest.withColumn("label", dfTest["quality"])
 assembler = VectorAssembler(
     inputCols=["fixed acidity", "volatile acidity", "citric acid", "residual sugar", "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density", "pH", "sulphates", "alcohol"],
     outputCol="features")

@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 import pyspark.sql as sql
 from pyspark.sql.types import DoubleType
+from pyspark.sql.types import IntegerType
 import os
 import sys
 from pyspark.ml.feature import RFormula
@@ -17,21 +18,23 @@ from pyspark.ml.pipeline import Transformer
 from pyspark.ml import PipelineModel
 
 
-def cleanCSVFile(inputPath, outputPath):
+def cleanCSVFile(inputPath):
     file1 = open(inputPath, 'r') 
-    file2 = open(outputPath, 'w')
     Lines = file1.readlines() 
-  
-    for line in Lines: 
+    line = Lines[0]
+    line2 = line.replace(';', ',').strip('\n')
+    line3 = line2.replace('"', '')
+    column_headers = line3.split(',')
+    Lines.pop(0) 
+    data_list = []
+    for line in Lines:
         line2 = line.replace(';', ',')
-        line3 = line2.replace('"', '')
-        file2.write(line3)
-    file1.close()
-    file2.close()
-    return outputPath
-
-
-sys.stdout = open("test.txt", "w")
+        line3 = line2.replace('"', '').strip('\n')
+        data_line = tuple(map(float, line3.split(',')))
+        data_list.append(data_line)
+    df = session.createDataFrame(data=data_list, schema = column_headers)
+    df2 = df.withColumn("label", df["quality"].cast(IntegerType()))
+    return df2
 
 f_path = ''
 model_path = ''
@@ -41,14 +44,11 @@ if len(sys.argv) > 1:
     if len(sys.argv) > 2:
         model_path = sys.argv[2]
 
-session = SparkSession.builder.appName("Train LR Model").getOrCreate()
+session = SparkSession.builder.appName("Test LR Model").getOrCreate()
 
 # Reads a CSV file with header, stores it in a dataframe
-testing_file = cleanCSVFile(f_path + 'ValidationDataset.csv', 'testing.csv')
-dfTest = session.read.csv(header=True, inferSchema=True, path=testing_file)
+dfTest1 = cleanCSVFile(f_path + 'ValidationDataset.csv')
 logisticRegressionModelLoaded = PipelineModel.load(model_path + "renda_model")
-
-dfTest1 = dfTest.withColumn("label", dfTest["quality"])
 
 
 evaluator = MulticlassClassificationEvaluator()\
@@ -64,5 +64,3 @@ print("F1 statistic on test dataset: " + str(accuracy))
 
 # Good to stop SparkSession at the end of the application
 session.stop()
-
-sys.stdout.close
