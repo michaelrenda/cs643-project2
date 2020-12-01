@@ -341,3 +341,17 @@ renda_model/stages/1_LogisticRegression_c6c06688d4a7/metadata/part-00000
 training.csv
 testing.csv
 train.txt
+Untitled.ipynb
+renda_model/stages/0_VectorAssembler_83c422d266cf/metadata/_SUCCESS
+renda_model/stages/0_VectorAssembler_83c422d266cf/metadata/._SUCCESS.crc
+renda_model/stages/0_VectorAssembler_83c422d266cf/metadata/.part-00000.crc
+renda_model/stages/0_VectorAssembler_83c422d266cf/metadata/part-00000
+renda_model/stages/1_LogisticRegression_16e395e86267/data/_SUCCESS
+renda_model/stages/1_LogisticRegression_16e395e86267/data/._SUCCESS.crc
+renda_model/stages/1_LogisticRegression_16e395e86267/data/.part-00000-2e103211-97e2-4b8e-815c-11c7f4bb7bae-c000.snappy.parquet.crc
+renda_model/stages/1_LogisticRegression_16e395e86267/data/part-00000-2e103211-97e2-4b8e-815c-11c7f4bb7bae-c000.snappy.parquet
+renda_model/stages/1_LogisticRegression_16e395e86267/metadata/_SUCCESS
+renda_model/stages/1_LogisticRegression_16e395e86267/metadata/._SUCCESS.crc
+renda_model/stages/1_LogisticRegression_16e395e86267/metadata/.part-00000.crc
+renda_model/stages/1_LogisticRegression_16e395e86267/metadata/part-00000
+Untitled.ipynb
