@@ -22,4 +22,5 @@ ADD renda_model renda_model
 ADD renda_test_model.py renda_test_model.py
 ADD ValidationDataset.csv ValidationDataset.csv
 
-ENTRYPOINT python renda_test_model.py
+ENTRYPOINT ["python", "renda_test_model.py"]
+CMD ["ValidationDataset.csv"]

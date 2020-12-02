@@ -36,20 +36,20 @@ def cleanCSVFile(inputPath):
     df2 = df.withColumn("label", df["quality"].cast(IntegerType()))
     return df2
 
-f_path = ''
-model_path = ''
+f_path = 'ValidationDataset.csv'
+model_path = 'renda_model'
 
 if len(sys.argv) > 1:
     f_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        model_path = sys.argv[2]
+if len(sys.argv) > 2:
+    model_path = sys.argv[2]
+
 
 session = SparkSession.builder.appName("Test LR Model").getOrCreate()
 
 # Reads a CSV file with header, stores it in a dataframe
-dfTest1 = cleanCSVFile(f_path + 'ValidationDataset.csv')
-logisticRegressionModelLoaded = PipelineModel.load(model_path + "renda_model")
-
+dfTest1 = cleanCSVFile(f_path)
+logisticRegressionModelLoaded = PipelineModel.load(model_path)
 
 evaluator = MulticlassClassificationEvaluator()\
   .setMetricName("f1")\
@@ -58,6 +58,7 @@ evaluator = MulticlassClassificationEvaluator()\
 
 tester = logisticRegressionModelLoaded.transform(dfTest1)
 row_count = tester.count()
+print("predicting values for: " + f_path)
 tester.select("features", "label", "prediction").show(row_count)
 accuracy = evaluator.evaluate(tester)
 print("F1 statistic on test dataset: " + str(accuracy))
