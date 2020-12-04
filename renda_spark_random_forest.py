@@ -1,71 +1,101 @@
+from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
 import pyspark.sql as sql
 from pyspark.sql.types import DoubleType
 import os
 import sys
+import shutil
+import numpy as np
+from pyspark.sql.types import IntegerType
 from pyspark.ml.feature import RFormula
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.feature import VectorAssembler
-from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.tuning import ParamGridBuilder
 from pyspark.ml import Pipeline
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.tuning import TrainValidationSplit
 from pyspark.ml.pipeline import Transformer
 
-run_local = False
+def cleanCSVFile(inputPath):
 
-class LabelSetter(Transformer):
-    # Label Setter herit of property of Transformer
-    def __init__(self, inputCol='quality', outputCol='label'): 
-        self.inputCol = inputCol
-        self.outputCol = outputCol
-    def _transform(self, df):
-        return df.withColumn(self.outputCol, df[self.inputCol])
+    file1 = open(inputPath, 'r') 
+    Lines = file1.readlines() 
+    line = Lines[0]
+    line2 = line.replace(';', ',').strip('\n')
+    line3 = line2.replace('"', '')
+    column_headers = line3.split(',')
+    Lines.pop(0) 
+    data_list = []
+    for line in Lines:
+        line2 = line.replace(';', ',')
+        line3 = line2.replace('"', '').strip('\n')
+        data_line = tuple(map(float, line3.split(',')))
+        data_list.append(data_line)
+    df = session.createDataFrame(data=data_list, schema = column_headers)
+    df2 = df.withColumn("label", df["quality"].cast(IntegerType()))
+    return df2
 
-sys.stdout = open("test.txt", "w")
 
-if run_local == True:
-    # Creates a session on a local master
-    session = SparkSession.builder.appName("CSV to Dataset").master("local[*]").getOrCreate()
-    # Reads a CSV file with header, stores it in a dataframe
-    dfTrain = session.read.csv(header=True, inferSchema=True, path='TrainingDataset.csv')
-    dfTest = session.read.csv(header=True, inferSchema=True, path='ValidationDataset.csv')
-else:
-    session = SparkSession.builder.appName("CSV to Dataset").getOrCreate()
-    dfTrain = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/TrainingDataset.csv')
-    dfTest = session.read.csv(header=True, inferSchema=True, path='s3n://renda-spark-input/ValidationDataset.csv')
+model_path = ''
+
+if len(sys.argv) > 1:
+    model_path = sys.argv[1]
+ 
+# delete the previous model if it exists
+try:
+    shutil.rmtree(model_path + 'renda_model')
+except OSError as e:
+    pass
+
+
+sys.stdout = open("train.txt", "w")
+
+session = SparkSession.builder.appName("Train RF Model").getOrCreate()
+
+# Reads a CSV file with header, stores it in a dataframe
+dfTrain1 = cleanCSVFile('TrainingDataset.csv')
+dfTest1 = cleanCSVFile('ValidationDataset.csv')
 
 assembler = VectorAssembler(
     inputCols=["fixed acidity", "volatile acidity", "citric acid", "residual sugar", "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density", "pH", "sulphates", "alcohol"],
     outputCol="features")
-ls = LabelSetter("quality")
+rf = RandomForestClassifier(labelCol="label",featuresCol="features")
 
-# Train a DecisionTree model.
-rf = RandomForestClassifier(labelCol="label", featuresCol="features", numTrees=10000)
+stages = [assembler, rf]
+pipeline = Pipeline().setStages(stages)
 
-# Chain indexers and tree in a Pipeline
-pipeline = Pipeline(stages=[assembler, ls, rf])
+params = ParamGridBuilder()\
+    .addGrid(rf.numTrees, [int(x) for x in np.linspace(start = 10, stop = 50, num = 5)])\
+    .addGrid(rf.featureSubsetStrategy, ["auto", "all", "sqrt", "log2"])\
+    .addGrid(rf.maxDepth, [int(x) for x in np.linspace(start = 5, stop = 25, num = 5)])\
+    .build()
 
-# Train model.  This also runs the indexers.
-model = pipeline.fit(dfTrain)
+evaluator = MulticlassClassificationEvaluator()\
+  .setMetricName("f1")\
+  .setPredictionCol("prediction")\
+  .setLabelCol("label")
 
-# Make predictions.
-predictions = model.transform(dfTest)
+tvs = TrainValidationSplit()\
+  .setTrainRatio(1.0)\
+  .setEstimatorParamMaps(params)\
+  .setEstimator(pipeline)\
+  .setEvaluator(evaluator)
 
-# Select example rows to display.
-predictions.select("prediction", "label", "features").show(5)
 
-# Select (prediction, true label) and compute test error
-evaluator = MulticlassClassificationEvaluator(
-    labelCol="label", predictionCol="prediction", metricName="f1")
-accuracy = evaluator.evaluate(predictions)
-print(accuracy)
+# COMMAND ----------
 
-treeModel = model.stages[0]
-# summary only
-print(treeModel)
+model = tvs.fit(dfTrain1).bestModel
+
+
+# Make predictions on test data. model is the model with combination of parameters
+# that performed best.
+tester = model.transform(dfTest1)
+tester.select("features", "label", "prediction").show()
+accuracy = evaluator.evaluate(tester)
+print("F1 statistic on test dataset: " + str(accuracy))
+sys.stdout.close
+
+model.write().overwrite().save(model_path + "renda_model")
 # Good to stop SparkSession at the end of the application
 session.stop()
 
-sys.stdout.close

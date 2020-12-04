@@ -37,13 +37,6 @@ def cleanCSVFile(inputPath):
 
 model_path = ''
 
-# delete the previous model if it exists
-try:
-    shutil.rmtree('renda_model')
-except OSError as e:
-    pass
-
-
 if len(sys.argv) > 1:
     model_path = sys.argv[1]
  
@@ -91,7 +84,6 @@ tvs = TrainValidationSplit()\
 # COMMAND ----------
 
 model = tvs.fit(dfTrain1).bestModel
-
 
 # Make predictions on test data. model is the model with combination of parameters
 # that performed best.
