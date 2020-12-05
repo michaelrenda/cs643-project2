@@ -65,9 +65,9 @@ stages = [assembler, rf]
 pipeline = Pipeline().setStages(stages)
 
 params = ParamGridBuilder()\
-    .addGrid(rf.numTrees, [int(x) for x in np.linspace(start = 10, stop = 50, num = 5)])\
+    .addGrid(rf.numTrees, [3])\
     .addGrid(rf.featureSubsetStrategy, ["auto", "all", "sqrt", "log2"])\
-    .addGrid(rf.maxDepth, [int(x) for x in np.linspace(start = 5, stop = 25, num = 5)])\
+    .addGrid(rf.maxDepth, [4])\
     .build()
 
 evaluator = MulticlassClassificationEvaluator()\
